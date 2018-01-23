@@ -45,7 +45,7 @@ int TcpListener::Open(const char *host, unsigned int port)
     hints.ai_family   = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    rc = uv_getaddrinfo(uv_default_loop(),
+    rc = uv_getaddrinfo(loop_,
             &req,
             NULL,
             host,
