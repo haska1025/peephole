@@ -1,16 +1,18 @@
+#include <string.h>
+#include <stdlib.h>
 #include "tcplistener.h"
+#include "tcphandler.h"
+#include "ph_log.h"
 
 void TcpListener::on_connection(uv_stream_t *server, int status)
 {
-    server_ctx *sx;
-    client_ctx *cx;
-
-    CHECK(status == 0);
-    sx = CONTAINER_OF(server, server_ctx, tcp_handle);
-    cx = xmalloc(sizeof(*cx));
-    CHECK(0 == uv_tcp_init(sx->loop, &cx->incoming.handle.tcp));
-    CHECK(0 == uv_accept(server, &cx->incoming.handle.stream));
-    client_finish_init(sx, cx);
+    if (status == 0){
+        TcpListener *tl = (TcpListener*)server->data;
+        TcpHandler *th = new TcpHandler(tl->loop_, NULL);
+        if (th){
+            th->Accept(server);
+        }
+    }
 }
 
 TcpListener::TcpListener(uv_loop_t *loop):loop_(loop)
@@ -32,7 +34,7 @@ int TcpListener::Open(const char *host, unsigned int port)
     uint32_t ipv6_naddrs;
 
     memset(&hints, 0, sizeof(struct addrinfo));
-    snprintf(portstr, 16, "%s", port);
+    snprintf(portstr, 16, "%d", port);
     /*
      * AI_PASSIVE flag: the resulting address is used to bind
      * to a socket for accepting incoming connections.
@@ -52,7 +54,7 @@ int TcpListener::Open(const char *host, unsigned int port)
             portstr,
             NULL);
     if (rc != 0){
-        LOG_ERROR("Tcp listener open failed rc(%d0 errmsg(%s)", rc, uv_streror(rc));
+        LOG_ERROR("Tcp listener open failed rc(%d0 errmsg(%s)", rc, uv_strerror(rc));
         return -1;
     }
 
@@ -73,7 +75,7 @@ int TcpListener::Open(const char *host, unsigned int port)
     }
 
     accept_size_ = ipv4_naddrs + ipv6_naddrs;
-    accept_ = malloc(accept_size_ * sizeof(uv_tcp_t));
+    accept_ = (uv_tcp_t*)malloc(accept_size_ * sizeof(uv_tcp_t));
 
     int n = 0;
     for (res = req.addrinfo; res != NULL; res = res->ai_next) {
@@ -82,27 +84,28 @@ int TcpListener::Open(const char *host, unsigned int port)
         }
 
         uv_inet_ntop(res->ai_family, res->ai_addr, addrbuf, 63);
-        rc = uv_tcp_init(loop_, &accpet_[n]);
+        rc = uv_tcp_init(loop_, &accept_[n]);
         if (rc != 0){
             LOG_WARNING("init tcp failed rc(%d) rsmsg(%s) addr(%s)", rc, uv_strerror(rc), addrbuf);
             continue;
         }
 
-        rc = uv_tcp_bind(&accept_[n], res, 0);
+        rc = uv_tcp_bind(&accept_[n], res->ai_addr, 0);
         if (rc != 0){
             LOG_WARNING("init tcp failed rc(%d) rsmsg(%s) addr(%s)", rc, uv_strerror(rc), addrbuf);
-            uv_close(&accept_[n], NULL);
+            uv_close((uv_handle_t*)&accept_[n], NULL);
             continue;
         }
 
+        accept_[n].data = this;
         rc = uv_listen((uv_stream_t *)&accept_[n], 128, on_connection);
         if (rc == 0) {
             LOG_WARNING("init tcp failed rc(%d) rsmsg(%s) addr(%s)", rc, uv_strerror(rc), addrbuf);
-            uv_close(&accept_[n], NULL);
+            uv_close((uv_handle_t*)&accept_[n], NULL);
             continue;
         }
 
-        LOG_INFO("listening on %s:%hu", addrbuf, cf->bind_port);
+        LOG_INFO("listening on %s:%d", addrbuf, port);
         n += 1;
     }
     if (n == 0)
@@ -115,7 +118,7 @@ int TcpListener::Open(const char *host, unsigned int port)
 int TcpListener::Close()
 {
     for (int i = 0; i < accept_size_; ++i){
-        uv_close(&accept_[i], NULL);
+        uv_close((uv_handle_t*)&accept_[i], NULL);
     }
 
     free(accept_);

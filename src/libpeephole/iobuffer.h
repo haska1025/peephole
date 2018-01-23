@@ -1,6 +1,7 @@
 #ifndef _LIBPEEPHOLE_IOBUFFER_H_
 #define _LIBPEEPHOLE_IOBUFFER_H_
 
+#include <stdint.h>
 #include "ph_decl.h"
 
 PH_NAMESPACE_DECL_BEGIN

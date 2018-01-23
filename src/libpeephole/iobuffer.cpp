@@ -68,7 +68,7 @@ void IOBuffer::AdjustConsumed(uint32_t new_consumed)
 {
     /* We need to check the new_consumed size */
     if (new_consumed > published_size()){
-        LOG_ERR("Adjust consumed check new_consumed(%u) gt publisedsize(%u)",
+        LOG_ERROR("Adjust consumed check new_consumed(%u) gt publisedsize(%u)",
                 new_consumed,
                 published_size());
 
@@ -124,7 +124,7 @@ void IOBuffer::AdjustPublished(uint32_t new_published)
 {
     /* We need to check the new_published size */
     if (new_published > unpublished_size()){
-        LOG_ERR("Adjust consumed check new_published(%u) gt unpublisedsize(%u)",
+        LOG_ERROR("Adjust consumed check new_published(%u) gt unpublisedsize(%u)",
                 new_published,
                 unpublished_size());
 

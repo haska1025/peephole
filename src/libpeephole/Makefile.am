@@ -1,7 +1,10 @@
 lib_LTLIBRARIES = libpeephole.la
 
 libpeephole_la_SOURCES = ph_iothread.cpp \
-						 log_manager.cpp 
+						 log_manager.cpp \
+						 tcplistener.cpp \
+						 tcphandler.cpp \
+						 iobuffer.cpp
 
 libpeephole_la_CPPFLAGS = $(LIBUV_CFLAGS) 
 libpeephole_la_LDFLAGS = $(LIBUV_LIBS) 

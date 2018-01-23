@@ -2,7 +2,8 @@
 #define _LIBPEEPHOLE_TCPHANDLER_H_
 
 #include <uv.h>
-#include "ph_def.h"
+#include "ph_decl.h"
+#include "iobuffer.h"
 
 PH_NAMESPACE_DECL_BEGIN
 class IOAdapter;
@@ -24,6 +25,7 @@ private:
     void Detach();
 
     uv_loop_t *loop_;
+    IOBuffer rxbuf_;
 
     uv_connect_t connect_req_; 
     uv_getaddrinfo_t addr_req_;
