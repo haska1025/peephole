@@ -29,12 +29,16 @@ int TcpListener::Open(const char *host, unsigned int port)
     uv_getaddrinfo_t req;
     struct addrinfo hints, *res;
     char portstr[16]={0};
+    char *portstr_ptr = NULL;
     char addrbuf[64];
     uint32_t ipv4_naddrs;
     uint32_t ipv6_naddrs;
 
     memset(&hints, 0, sizeof(struct addrinfo));
-    snprintf(portstr, 16, "%d", port);
+    if (port != 0 ){
+        snprintf(portstr, 16, "%d", port);
+        portstr_ptr = portstr;
+    }
     /*
      * AI_PASSIVE flag: the resulting address is used to bind
      * to a socket for accepting incoming connections.
@@ -51,8 +55,8 @@ int TcpListener::Open(const char *host, unsigned int port)
             &req,
             NULL,
             host,
-            portstr,
-            NULL);
+            portstr_ptr,
+            &hints);
     if (rc != 0){
         LOG_ERROR("Tcp listener open failed rc(%d0 errmsg(%s)", rc, uv_strerror(rc));
         return -1;
@@ -79,33 +83,39 @@ int TcpListener::Open(const char *host, unsigned int port)
 
     int n = 0;
     for (res = req.addrinfo; res != NULL; res = res->ai_next) {
-        if (res->ai_family != AF_INET && res->ai_family != AF_INET6) {
+        LOG_INFO("addr info family(%d) socktype(%d)", res->ai_family, res->ai_socktype);
+        if (res->ai_family == AF_INET){
+            uv_inet_ntop(res->ai_family, (void*)&((struct sockaddr_in*)res->ai_addr)->sin_addr, addrbuf, 63);
+            port = ntohs(((struct sockaddr_in*)res->ai_addr)->sin_port);
+        }else if ( res->ai_family == AF_INET6) {
+            uv_inet_ntop(res->ai_family, (void*)&((struct sockaddr_in6*)res->ai_addr)->sin6_addr, addrbuf, 63);
+            port = ntohs(((struct sockaddr_in6*)res->ai_addr)->sin6_port);
+        }else{
             continue;
         }
 
-        uv_inet_ntop(res->ai_family, res->ai_addr, addrbuf, 63);
         rc = uv_tcp_init(loop_, &accept_[n]);
         if (rc != 0){
-            LOG_WARNING("init tcp failed rc(%d) rsmsg(%s) addr(%s)", rc, uv_strerror(rc), addrbuf);
+            LOG_WARNING("Init tcp failed rc(%d) rsmsg(%s) addr(%s)", rc, uv_strerror(rc), addrbuf);
             continue;
         }
 
-        rc = uv_tcp_bind(&accept_[n], res->ai_addr, 0);
+        rc = uv_tcp_bind(&accept_[n], res->ai_addr, res->ai_family==AF_INET6?UV_TCP_IPV6ONLY:0);
         if (rc != 0){
-            LOG_WARNING("init tcp failed rc(%d) rsmsg(%s) addr(%s)", rc, uv_strerror(rc), addrbuf);
+            LOG_WARNING("Bind tcp failed rc(%d) rsmsg(%s) addr(%s)", rc, uv_strerror(rc), addrbuf);
             uv_close((uv_handle_t*)&accept_[n], NULL);
             continue;
         }
 
         accept_[n].data = this;
         rc = uv_listen((uv_stream_t *)&accept_[n], 128, on_connection);
-        if (rc == 0) {
-            LOG_WARNING("init tcp failed rc(%d) rsmsg(%s) addr(%s)", rc, uv_strerror(rc), addrbuf);
+        if (rc != 0) {
+            LOG_WARNING("Listen tcp failed rc(%d) rsmsg(%s) addr(%s)", rc, uv_strerror(rc), addrbuf);
             uv_close((uv_handle_t*)&accept_[n], NULL);
             continue;
         }
 
-        LOG_INFO("listening on %s:%d", addrbuf, port);
+        LOG_INFO("Listening on %s:%u n(%d) family(%d)", addrbuf, port, n, res->ai_family);
         n += 1;
     }
     if (n == 0)

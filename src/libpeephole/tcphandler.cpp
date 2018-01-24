@@ -60,6 +60,10 @@ void TcpHandler::connect_cb(uv_connect_t* req, int status)
     TcpHandler *handler = (TcpHandler*)req->data;
     if (handler->adapter_){
         if (status == 0){
+            // Register read event
+            if (uv_read_start((uv_stream_t*)&handler->stream_, alloc_cb, read_cb) != 0)
+                return;
+
             handler->adapter_->OnConnect();
         }else{
             handler->adapter_->OnClose();
