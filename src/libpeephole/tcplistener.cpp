@@ -3,19 +3,39 @@
 #include "tcplistener.h"
 #include "tcphandler.h"
 #include "ph_log.h"
+#include "ioadapter.h"
 
 void TcpListener::on_connection(uv_stream_t *server, int status)
 {
+    LOG_INFO("Accept new connection. status(%d)", status);
+
     if (status == 0){
         TcpListener *tl = (TcpListener*)server->data;
-        TcpHandler *th = new TcpHandler(tl->loop_, NULL);
-        if (th){
-            th->Accept(server);
+        IOAdapter *adpt = NULL;
+        if (!tl->adapter_){
+            LOG_ERROR("No tcp listener adapter");
+            return;
         }
+
+        adpt = tl->adapter_->OnAccept();
+        if (!adpt){
+            LOG_ERROR("Create adapter for tcp handler failed");
+            return;
+        }
+
+        TcpHandler *th = new TcpHandler(tl->loop_, adpt);
+        if (!th){
+            LOG_ERROR("Create tcphandler failed");
+            delete adpt;
+            adpt = NULL;
+            return;
+        }
+
+        th->Accept(server);
     }
 }
 
-TcpListener::TcpListener(uv_loop_t *loop):loop_(loop)
+TcpListener::TcpListener(uv_loop_t *loop, IOAdapter *adpt):IOHandler(loop, adpt)
 {
     accept_ = NULL;
     accept_size_ = 0;
